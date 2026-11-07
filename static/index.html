@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>nearagentpay — agents pay per step, on-chain</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@near-wallet-selector/modal-ui@8.9.14/styles.css">
 <style>
 :root{
   --bg:#07090b;--panel:rgba(18,22,27,.82);--panel-solid:#12161b;--panel2:#171c22;
@@ -532,11 +533,12 @@ function openRun(rid){currentRid=rid;$('#runbtn').disabled=true;poll(rid);
 
 boot();
 
-/* Wallet connection layer (@near-wallet-selector). Web wallet (MyNearWallet)
-   plus Chrome-extension wallets (Meteor, Sender) with a standard picker.
-   The wallet's role: fund the facilitator float with in-app signed transfers;
-   the agent loop never touches user keys. */
-let selector = null, walletAccount = null, facAccount = null, walletModules = [];
+/* Wallet connection layer: @near-wallet-selector + the official modal-ui
+   (the standard NEAR connect/disconnect/switch UX). Wallet role: fund the
+   facilitator float with in-app signed transfers; the agent loop never
+   touches user keys. No contractId: connect-only, transfers are signed
+   per request by the wallet itself. */
+let selector = null, modal = null, walletAccount = null, facAccount = null;
 const yocto = v => (BigInt(Math.round(Number(v) * 1000)) * (10n ** 21n)).toString();
 
 async function loadModule(url, names) {
@@ -544,7 +546,7 @@ async function loadModule(url, names) {
     const m = await import(url);
     for (const n of names) if (typeof m[n] === 'function') return m[n]();
     return null;
-  } catch (e) { return null; }
+  } catch (e) { console.error('wallet module failed:', url, e); return null; }
 }
 
 async function initWallet() {
@@ -555,7 +557,7 @@ async function initWallet() {
       loadModule('https://cdn.jsdelivr.net/npm/@near-wallet-selector/meteor-wallet@8.9.14/+esm', ['setupMeteorWallet']),
       loadModule('https://cdn.jsdelivr.net/npm/@near-wallet-selector/sender@8.9.14/+esm', ['setupSender']),
     ])).filter(Boolean);
-    if (!mods.length) throw new Error('no wallet modules');
+    if (!mods.length) throw new Error('no wallet modules loaded');
     selector = await core.setupWalletSelector({
       network: {
         networkId: 'testnet',
@@ -565,20 +567,18 @@ async function initWallet() {
       },
       modules: mods,
     });
+    const mui = await import('https://cdn.jsdelivr.net/npm/@near-wallet-selector/modal-ui@8.9.14/+esm');
+    modal = mui.setupModal(selector, { contractId: undefined });
     selector.store.observable.subscribe((state) => {
       walletAccount = state.accounts.find(a => a.active)?.accountId || null;
-      walletModules = state.modules || [];
       renderWallet();
     });
     renderWallet();
   } catch (e) {
+    console.error('wallet init failed:', e);
     $('#wallettchip').textContent = 'wallet: offline (deep-link fallback active)';
     $('#walletbtn').style.display = 'none';
   }
-}
-
-function availableWallets() {
-  return walletModules.filter(m => m.available !== false);
 }
 
 function renderWallet() {
@@ -586,50 +586,30 @@ function renderWallet() {
   if (!selector) return;
   if (walletAccount) {
     const short = walletAccount.length > 18 ? walletAccount.slice(0, 10) + '…' + walletAccount.slice(-6) : walletAccount;
-    const wname = (walletModules.find(m => m.id === selector.store.getState().selectedWalletId) || {}).metadata?.name || 'wallet';
-    chip.innerHTML = `wallet: <b style="color:var(--near)">${esc(short)}</b> <span style="color:var(--faint)">via ${esc(wname)}</span>`;
+    chip.innerHTML = `wallet: <b style="color:var(--near)">${esc(short)}</b>`;
     btn.textContent = 'disconnect';
+    btn.classList.remove('primary');
     state.innerHTML = `<input id="topupamt" type="number" step="0.1" min="0.1" value="0.5" style="width:70px;background:rgba(0,0,0,.35);border:1px solid var(--line2);color:var(--txt);border-radius:8px;padding:5px 8px;font-family:var(--mono);font-size:12px">
       <button class="mini" id="topupbtn" type="button">send ◎ to agent float</button>
       <button class="mini" id="switchbtn" type="button">switch wallet</button>
       <span>signed by your wallet, in-app</span>`;
     $('#topupbtn').onclick = topUpFloat;
-    $('#switchbtn').onclick = () => showPicker(true);
+    $('#switchbtn').onclick = () => modal.show();
   } else {
     chip.textContent = 'wallet: not connected';
     btn.textContent = 'connect wallet';
     btn.classList.add('primary');
-    state.innerHTML = `<span>connect a wallet to fund the agent float in-app; the agent never touches your keys</span><span id="picker" style="position:relative"></span>`;
+    state.innerHTML = `<span>connect a wallet to fund the agent float in-app; the agent never touches your keys</span>`;
   }
-}
-
-function showPicker(force) {
-  const holder = $('#picker');
-  if (!holder) return;
-  const wallets = availableWallets();
-  if (wallets.length <= 1 && !force) { connectWith(wallets[0]?.id); return; }
-  holder.innerHTML = `<span style="display:inline-flex;gap:6px;margin-left:10px;flex-wrap:wrap">` + wallets.map(w => {
-    const kind = w.type === 'injected' ? 'extension' : (w.metadata?.deprecated ? 'web' : 'web');
-    return `<button class="mini" data-wid="${esc(w.id)}" type="button">${esc(w.metadata?.name || w.id)} · ${kind}</button>`;
-  }).join('') + `</span>`;
-  holder.querySelectorAll('button[data-wid]').forEach(b => {
-    b.onclick = () => { holder.innerHTML = ''; connectWith(b.dataset.wid); };
-  });
-}
-
-async function connectWith(walletId) {
-  try {
-    const w = walletId ? await selector.wallet(walletId) : await selector.wallet();
-    await w.signIn();
-  } catch (e) { toast('wallet connection cancelled or failed'); }
 }
 
 $('#walletbtn').onclick = async () => {
   if (!selector) return;
   if (walletAccount) {
-    try { await (await selector.wallet()).signOut(); } catch (e) {}
+    try { await (await selector.wallet()).signOut(); } catch (e) { console.error('signOut:', e); }
   } else {
-    showPicker(false);
+    if (!modal) { toast('wallet still loading, one moment…'); return; }
+    modal.show();
   }
 };
 
@@ -638,13 +618,17 @@ async function topUpFloat() {
   const amt = $('#topupamt').value;
   try {
     const w = await selector.wallet();
-    await w.signAndSendTransaction({
+    const out = await w.signAndSendTransaction({
       receiverId: facAccount,
       actions: [{ type: 'Transfer', params: { deposit: yocto(amt) } }],
     });
+    console.log('top-up tx:', out);
     toast(`sent ${amt} NEAR to the agent float`);
     refreshFacilitator();
-  } catch (e) { toast('transfer cancelled or failed'); }
+  } catch (e) {
+    console.error('top-up failed:', e);
+    toast('top-up failed: ' + (e?.message || String(e)).slice(0, 120));
+  }
 }
 
 /* facilitator account is needed by the wallet layer; capture it on refresh */
