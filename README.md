@@ -51,6 +51,26 @@ Provider accounts are subaccounts the facilitator creates, so refunds are
 signed by the facilitator on the provider's behalf (documented prototype
 choice; a production version settles between independent principals).
 
+## Alignment with NEAR hackathon themes
+
+The announcement names NEAR Intents, chain signatures, chain abstraction,
+and NEAR AI Cloud. Where this build stands on each, honestly:
+
+- **Native settlement today:** every agent step is a NEAR transfer, final
+  in seconds, explorer-verifiable. This is the core contribution.
+- **NEAR Intents (next step, not yet implemented):** the provider-routing
+  layer is exactly where Intents fit — an agent buying a step from a
+  provider that lives on another chain should route through 1-click intents
+  rather than bridging manually. The control plane (`plan`, routing,
+  budget, ledger) is unchanged when a step's settlement moves to intents.
+- **Chain signatures (direction):** facilitator keys today are ed25519
+  full-access keys held in server env. MPC/chain-signatures would let the
+  facilitator policy live on-chain (spend limits enforced by the chain
+  itself, not just the agent loop). Documented as the production path.
+- **NEAR AI Cloud (direction):** the deterministic `plan()` is deliberately
+  swappable; an LLM planner hosted on NEAR AI infrastructure drops behind
+  the same interface.
+
 ## Architecture
 
 | File | Role |

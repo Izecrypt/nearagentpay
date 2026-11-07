@@ -187,6 +187,15 @@ class NearGateway:
         self.rpc = NearRPC(rpc_url)
         self.provider_map = provider_map or {}
         self.provider_keys = {p: Key(s) for p, s in (provider_secrets or {}).items()}
+        # nonce fetch+sign+broadcast must be serialized per signing key,
+        # or concurrent runs collide on the same nonce
+        self._locks = {}
+
+    def _lock(self, name):
+        import threading
+        if name not in self._locks:
+            self._locks[name] = threading.Lock()
+        return self._locks[name]
 
     def explorer_url(self, tx_hash):
         return f"{self.rpc.explorer}/transactions/{tx_hash}"
@@ -197,8 +206,9 @@ class NearGateway:
         return tx_hash
 
     def transfer(self, signer, key, receiver, amount_near):
-        return self._submit(signer, key, receiver,
-                            [transfer_action(to_yocto(amount_near))])
+        with self._lock(signer):
+            return self._submit(signer, key, receiver,
+                                [transfer_action(to_yocto(amount_near))])
 
     # gateway interface used by the agent loop
     def create_order(self, amount, receiver=None):
