@@ -1,4 +1,5 @@
 """SQLite audit ledger for the NEAR-native AgentPay run."""
+import json
 import sqlite3
 import time
 
@@ -15,8 +16,12 @@ class Store:
           id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT, n INTEGER,
           service TEXT, provider TEXT, providers_considered INTEGER, best_price REAL,
           budget_remaining REAL, order_id TEXT, capture_id TEXT, status TEXT,
-          refund_id TEXT, note TEXT, explorer_url TEXT, ts REAL);
+          refund_id TEXT, note TEXT, explorer_url TEXT, quotes_json TEXT, ts REAL);
         """)
+        try:
+            self.conn.execute("ALTER TABLE steps ADD COLUMN quotes_json TEXT")
+        except sqlite3.OperationalError:
+            pass
 
     def create_run(self, rid, task, budget):
         self.conn.execute(
@@ -28,12 +33,14 @@ class Store:
         self.conn.execute(
             """INSERT INTO steps(run_id,n,service,provider,providers_considered,
                best_price,budget_remaining,order_id,capture_id,status,refund_id,
-               note,explorer_url,ts) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               note,explorer_url,quotes_json,ts) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (rid, step.get("step"), step.get("service"), step.get("provider"),
              step.get("providers_considered"), step.get("best_price"),
              step.get("budget_remaining"), step.get("order_id"),
              step.get("capture_id"), step.get("status"), step.get("refund_id"),
-             step.get("note"), step.get("explorer_url"), time.time()))
+             step.get("note"), step.get("explorer_url"),
+             json.dumps(step.get("quotes")) if step.get("quotes") else None,
+             time.time()))
         self.conn.commit()
 
     def finish_run(self, rid, status, error=None):
@@ -49,8 +56,12 @@ class Store:
         run = self.conn.execute("SELECT * FROM runs WHERE id=?", (rid,)).fetchone()
         if not run:
             return None
-        steps = [dict(s) for s in self.conn.execute(
-            "SELECT * FROM steps WHERE run_id=? ORDER BY n", (rid,))]
+        steps = []
+        for s in self.conn.execute("SELECT * FROM steps WHERE run_id=? ORDER BY n", (rid,)):
+            d = dict(s)
+            if d.get("quotes_json"):
+                d["quotes"] = json.loads(d["quotes_json"])
+            steps.append(d)
         spent = round(sum(s["best_price"] or 0 for s in steps if s["status"] == "paid"), 3)
         return {"run": dict(run), "steps": steps, "spent": spent,
                 "remaining": round(run["budget"] - spent, 3)}

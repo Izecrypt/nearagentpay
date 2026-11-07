@@ -74,6 +74,7 @@ def run_task(task, budget, gateway, on_step, provider_map=None):
             "explorer_url": None,
         }
         affordable = [q for q in quotes if q["price"] <= remaining]
+        step["quotes"] = quotes
         if not affordable:
             step["note"] = (f"cheapest quote {quotes[0]['price']:.3f} exceeds remaining "
                             f"budget {remaining:.3f}; step skipped")
