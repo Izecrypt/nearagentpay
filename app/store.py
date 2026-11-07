@@ -89,6 +89,13 @@ class Store:
         self.conn.commit()
         return True, res.get("refund_id")
 
+    def refund_step_safe(self, gateway, step_id):
+        """Never raise into the HTTP handler; a chain error becomes a clean 400."""
+        try:
+            return self.refund_step(gateway, step_id)
+        except Exception as e:
+            return False, f"refund error: {str(e)[:200]}"
+
     def list_ledger(self, limit=100):
         rows = [dict(r) for r in self.conn.execute(
             """SELECT s.*, r.task AS run_task FROM steps s

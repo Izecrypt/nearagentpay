@@ -15,7 +15,7 @@ import urllib.request
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
 
 from chain import b58encode, b58decode, SimGateway, get_gateway, to_yocto, NEAR  # noqa: E402
-from agent import plan, run_task, live_quotes, CATALOG, receiver_for  # noqa: E402
+from agent import plan, run_task, live_quotes, CATALOG, receiver_for, artifact_for  # noqa: E402
 from store import Store  # noqa: E402
 
 PASS = 0
@@ -32,13 +32,23 @@ print("chain primitives")
 raw = bytes(range(1, 64))
 check("base58 round-trip", b58decode(b58encode(raw)) == raw)
 check("base58 known vector (bitcoin)", b58encode(b"hello world") == "StV1DL6CwTryKyV")
-check("yocto conversion", to_yocto(1.5) == 15 * 10 ** 17 and NEAR == 10 ** 18)
+check("yocto conversion", to_yocto(1.5) == 15 * 10 ** 23 and NEAR == 10 ** 24)
+check("yocto exact at 24 decimals", to_yocto(0.037) == 37 * 10 ** 21)
 
 
 print("plan()")
 svc = plan("generate a header image, then translate the copy to french")
 check("service order follows task order", svc[0] == "image" and "translation" in svc)
 check("unknown task gets default plan", plan("xyzzy unknown") == ["search", "summarization"])
+check("word boundaries: 'start' does not trigger 'art'",
+      "image" not in plan("start a campaign"))
+check("word boundaries: 'metadata' does not trigger 'data'",
+      "dataset" not in plan("update the metadata"))
+check("word boundaries: 'records' still matches",
+      "dataset" in plan("find records of suppliers"))
+print("artifact seed stability")
+a1 = artifact_for("image", "PixelForge")
+check("seed derived from stable crc32", a1["seed"] == artifact_for("image", "PixelForge")["seed"])
 
 print("live_quotes()")
 q = live_quotes()

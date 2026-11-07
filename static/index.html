@@ -338,9 +338,6 @@ function copy(text){navigator.clipboard.writeText(text).then(()=>toast('copied t
 async function boot(){
   const g=await j('/api/providers');
   $('#netname').textContent=g.gateway==='sim'?'simulation':'NEAR testnet';
-  $('#gatechip').innerHTML=g.gateway==='sim'
-    ?'simulation mode'
-    :'facilitator <a href="https://explorer.testnet.near.org/accounts/izagentpay.testnet" target="_blank" rel="noopener">izagentpay…</a>';
   refreshFacilitator();
   setInterval(refreshFacilitator,20000);
   renderMarket(g.quotes);
@@ -379,9 +376,10 @@ async function refreshFacilitator(){
   try{
     const f=await j('/api/facilitator');
     if(f.account&&f.balance_near!=null){
+      $('#gatechip').innerHTML=`facilitator <a href="${f.explorer}" target="_blank" rel="noopener">${esc(f.account.slice(0,10))}…</a>`;
       $('#facchip').innerHTML=`agent float <b style="color:var(--near)">${f.balance_near.toLocaleString()}◎</b>
         <a href="https://testnet.mynearwallet.com/send-money/${f.account}" target="_blank" rel="noopener" title="top up the facilitator float from your NEAR wallet">top up ↗</a>`;
-    }else{$('#facchip').textContent='simulation float';}
+    }else{$('#facchip').textContent='simulation float';$('#gatechip').textContent='simulation mode';}
   }catch(e){}
 }
 async function refreshMarket(){try{const g=await j('/api/providers');renderMarket(g.quotes);}catch(e){}}
@@ -426,7 +424,7 @@ async function poll(rid){
   try{d=await j('/api/run?id='+rid);}catch(e){pollTimer=setTimeout(()=>poll(rid),1500);return;}
   render(rid,d);
   if(d.run.status==='running')pollTimer=setTimeout(()=>poll(rid),900);
-  else {$('#runbtn').disabled=false;loadLedger();}
+  else {currentRid=null;$('#runbtn').disabled=false;loadLedger();loadRuns();}
 }
 
 function ring(pct){return 251.3*(1-Math.min(100,pct)/100);}

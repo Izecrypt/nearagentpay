@@ -99,14 +99,17 @@ class Handler(BaseHTTPRequestHandler):
                              args=(rid, task, budget), daemon=True).start()
             return self._send(202, json.dumps({"run_id": rid}))
         if p.path == "/api/refund":
-            ok, detail = STORE.refund_step(GATEWAY, body.get("step_id"))
+            ok, detail = STORE.refund_step_safe(GATEWAY, body.get("step_id"))
             return self._send(200 if ok else 400, json.dumps({"ok": ok, "detail": detail}))
         return self._send(404, "{}")
 
     def _run_task(self, rid, task, budget):
-        result = run_task(task, budget, GATEWAY, lambda s: STORE.add_step(rid, s),
-                          PROVIDER_MAP)
-        STORE.finish_run(rid, result["status"], result.get("error"))
+        try:
+            result = run_task(task, budget, GATEWAY,
+                              lambda s: STORE.add_step(rid, s), PROVIDER_MAP)
+            STORE.finish_run(rid, result["status"], result.get("error"))
+        except Exception as e:
+            STORE.finish_run(rid, "failed", str(e)[:300])
 
 
 def facilitator_info():
@@ -116,7 +119,7 @@ def facilitator_info():
         acct = GATEWAY.rpc._call("query", {
             "request_type": "view_account", "finality": "final",
             "account_id": GATEWAY.account})
-        bal = int(acct["amount"]) / 10 ** 18
+        bal = int(acct["amount"]) / 10 ** 24
     except Exception:
         bal = None
     return {"gateway": GATEWAY.name, "account": GATEWAY.account,

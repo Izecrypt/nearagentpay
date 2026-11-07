@@ -17,14 +17,14 @@ from chain import (NearRPC, Key, build_and_sign, b58encode, b58decode,  # noqa: 
 
 from agent import CATALOG  # noqa: E402
 
-FUND_NEAR = 0.5
+FUND_NEAR = 2.0
 ENV_PATH = os.path.join(os.path.dirname(__file__), "..", ".env.testnet")
 
 
 def main():
     account = os.environ.get("NEAR_FACILITATOR_ACCOUNT", "izagentpay.testnet")
     secret = os.environ["NEAR_FACILITATOR_KEY"]
-    rpc = NearRPC(os.environ.get("NEAR_RPC_URL", "https://rpc.testnet.near.org"))
+    rpc = NearRPC(os.environ.get("NEAR_RPC_URL", "https://rpc.testnet.fastnear.com"))
     key = Key(secret)
 
     providers = {p for plist in CATALOG.values() for p, _ in plist}

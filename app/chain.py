@@ -69,7 +69,7 @@ SCHEMA_HASH_TRANSFER = 3  # Action enum index for Transfer
 
 
 class NearRPC:
-    def __init__(self, url="https://rpc.testnet.near.org", explorer=None):
+    def __init__(self, url="https://rpc.testnet.fastnear.com", explorer=None):
         self.url = url
         self.explorer = explorer or url.replace("rpc.", "explorer.").rstrip("/")
 
@@ -169,18 +169,21 @@ def add_key_action(pk_bytes):
     return (5, b"\x00" + pk_bytes + _u64(0) + b"\x01")
 
 
-NEAR = 10 ** 18
+NEAR = 10 ** 24
 
 
 def to_yocto(near):
-    return int(round(near * NEAR))
+    """Exact integer conversion via Decimal; float64 cannot hold 24-decimal
+    precision (1.5e24 in floats loses ~7 significant digits)."""
+    from decimal import Decimal, ROUND_DOWN
+    return int((Decimal(str(near)) * NEAR).to_integral_value(rounding=ROUND_DOWN))
 
 
 class NearGateway:
     name = "near-testnet"
 
     def __init__(self, account, secret_b58,
-                 rpc_url="https://rpc.testnet.near.org",
+                 rpc_url="https://rpc.testnet.fastnear.com",
                  provider_map=None, provider_secrets=None):
         self.account = account
         self.key = Key(secret_b58)
@@ -212,9 +215,8 @@ class NearGateway:
 
     # gateway interface used by the agent loop
     def create_order(self, amount, receiver=None):
-        receiver = receiver or self.provider_map.get(receiver)
         if not receiver:
-            return {"ok": False, "error": "unknown receiver"}
+            return {"ok": False, "error": "settlement account required"}
         tx = self.transfer(self.account, self.key, receiver, amount)
         return {"ok": True, "order_id": tx, "status": "SUBMITTED",
                 "approval_url": None}
@@ -267,6 +269,6 @@ def get_gateway(env):
         providers = json.loads(env.get("NEAR_PROVIDERS", "{}"))
         secrets = json.loads(env.get("NEAR_PROVIDER_SECRETS", "{}"))
         return NearGateway(acct, sec,
-                           env.get("NEAR_RPC_URL", "https://rpc.testnet.near.org"),
+                           env.get("NEAR_RPC_URL", "https://rpc.testnet.fastnear.com"),
                            providers, secrets)
     return SimGateway()

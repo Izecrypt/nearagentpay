@@ -2,7 +2,9 @@
 step to the cheapest live quote, settle per step on-chain, enforce the
 budget, and record every decision."""
 import random
+import re
 import time
+import zlib
 
 CURRENCY = "NEAR"
 
@@ -41,12 +43,22 @@ def live_quotes():
 
 
 def plan(task):
-    low = task.lower()
+    """Order services by where their keyword first appears in the task.
+    A keyword matches a whole word when one is a prefix of the other, so
+    'summar' matches 'summarize' but 'art' never matches 'start' and
+    'data' never matches 'metadata'."""
+    words = [(m.start(), m.group()) for m in re.finditer(r"[a-z0-9']+", task.lower())]
     found = []
     for keys, svc in KEYWORDS:
-        pos = min((low.find(k) for k in keys if low.find(k) >= 0), default=-1)
+        pos = -1
+        for wpos, word in words:
+            if any(len(k) >= 3 and (word == k or word.startswith(k))
+                   for k in keys):
+                pos = wpos
+                break
         if pos >= 0:
             found.append((pos, svc))
+    services = [svc for _, svc in sorted(found)]
     services = [svc for _, svc in sorted(found)]
     if not services:
         services = ["search", "summarization"]
@@ -76,7 +88,7 @@ def artifact_for(service, provider):
     if service == "image":
         return {"type": "image", "title": "Image deliverable",
                 "prompt": "minimal header, gradient mesh, dark mode",
-                "meta": f"1024×512 · by {provider}", "seed": hash(provider) % 360}
+                "meta": f"1024×512 · by {provider}", "seed": zlib.crc32(provider.encode()) % 360}
     if service == "dataset":
         return {"type": "dataset", "title": "Dataset deliverable",
                 "body": "price | name | source\n0.104 | LinguaFast | near\n"
