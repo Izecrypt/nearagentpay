@@ -258,6 +258,7 @@ footer a:hover{color:var(--near)}
     <span class="badge">NEAR hackathon</span>
     <div class="right">
       <span class="chip" id="facchip">float …</span>
+      <span class="chip" id="wallettchip">wallet: not connected</span>
       <span class="chip" id="gatechip">connecting…</span>
     </div>
   </div>
@@ -279,6 +280,10 @@ footer a:hover{color:var(--near)}
       </div>
       <button class="runbtn" type="submit" id="runbtn">Run agent</button>
     </form>
+    <div id="walletbar" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px">
+      <button class="mini" id="walletbtn" type="button">connect NEAR wallet</button>
+      <span id="walletstate" style="font-size:12px;color:var(--dim)">connect to fund the agent float in-app; the agent never touches your keys</span>
+    </div>
     <div id="runview"></div>
   </div>
 
@@ -526,6 +531,90 @@ function openRun(rid){currentRid=rid;$('#runbtn').disabled=true;poll(rid);
   document.querySelector('.console').scrollIntoView({behavior:'smooth',block:'start'});}
 
 boot();
+
+/* Wallet connection layer (@near-wallet-selector, MyNearWallet on testnet).
+   The wallet's role in this architecture is funding the facilitator float
+   with in-app signed transfers; the agent loop never touches user keys. */
+let selector = null, walletAccount = null, facAccount = null;
+const yocto = v => (BigInt(Math.round(Number(v) * 1000)) * (10n ** 21n)).toString();
+
+async function initWallet() {
+  try {
+    const core = await import('https://cdn.jsdelivr.net/npm/@near-wallet-selector/core@8.9.14/+esm');
+    const mnw = await import('https://cdn.jsdelivr.net/npm/@near-wallet-selector/my-near-wallet@8.9.14/+esm');
+    selector = await core.setupWalletSelector({
+      network: {
+        networkId: 'testnet',
+        nodeUrl: 'https://rpc.testnet.fastnear.com',
+        helperUrl: 'https://helper.testnet.near.org',
+        explorerUrl: 'https://explorer.testnet.near.org',
+        indexerUrl: 'https://testnet-api.kitwallet.app',
+      },
+      modules: [mnw.setupMyNearWallet()],
+    });
+    selector.store.observable.subscribe(async (state) => {
+      walletAccount = state.accounts.find(a => a.active)?.accountId || null;
+      renderWallet();
+    });
+    renderWallet();
+  } catch (e) {
+    $('#wallettchip').textContent = 'wallet: offline (deep-link fallback active)';
+    $('#walletbtn').style.display = 'none';
+  }
+}
+
+function renderWallet() {
+  const chip = $('#wallettchip'), state = $('#walletstate'), btn = $('#walletbtn');
+  if (!selector) return;
+  if (walletAccount) {
+    chip.innerHTML = `wallet: <b style="color:var(--near)">${esc(walletAccount.length > 18 ? walletAccount.slice(0, 10) + '…' + walletAccount.slice(-6) : walletAccount)}</b>`;
+    btn.textContent = 'disconnect';
+    state.innerHTML = `<input id="topupamt" type="number" step="0.1" min="0.1" value="0.5" style="width:70px;background:rgba(0,0,0,.35);border:1px solid var(--line2);color:var(--txt);border-radius:8px;padding:5px 8px;font-family:var(--mono);font-size:12px">
+      <button class="mini" id="topupbtn" type="button">send ◎ to agent float</button>
+      <span>signed by your wallet, in-app</span>`;
+    $('#topupbtn').onclick = topUpFloat;
+  } else {
+    chip.textContent = 'wallet: not connected';
+    btn.textContent = 'connect NEAR wallet';
+    state.textContent = 'connect to fund the agent float in-app; the agent never touches your keys';
+  }
+}
+
+$('#walletbtn').onclick = async () => {
+  if (!selector) return;
+  try {
+    const w = await selector.wallet();
+    if (walletAccount) { await w.signOut(); }
+    else { await w.signIn(); }
+  } catch (e) { toast('wallet action cancelled or failed'); }
+};
+
+async function topUpFloat() {
+  if (!walletAccount || !facAccount) return;
+  const amt = $('#topupamt').value;
+  try {
+    const w = await selector.wallet();
+    await w.signAndSendTransaction({
+      receiverId: facAccount,
+      actions: [{ type: 'Transfer', params: { deposit: yocto(amt) } }],
+    });
+    toast(`sent ${amt} NEAR to the agent float`);
+    refreshFacilitator();
+  } catch (e) { toast('transfer cancelled or failed'); }
+}
+
+/* facilitator account is needed by the wallet layer; capture it on refresh */
+const _origRefreshFac = refreshFacilitator;
+refreshFacilitator = async function () {
+  await _origRefreshFac();
+  try {
+    const f = await j('/api/facilitator');
+    if (f.account) facAccount = f.account;
+  } catch (e) {}
+};
+
+initWallet();
+refreshFacilitator();
 </script>
 </body>
 </html>

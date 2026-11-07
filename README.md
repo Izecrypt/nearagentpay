@@ -51,12 +51,13 @@ Provider accounts are subaccounts the facilitator creates, so refunds are
 signed by the facilitator on the provider's behalf (documented prototype
 choice; a production version settles between independent principals).
 
-Wallet interaction: deliberately no connect-wallet in the agent loop (the
-agent spends the facilitator float; humans never sign per action). The one
-wallet touchpoint is funding the float: the UI deep-links to MyNearWallet's
-send flow (testnet.mynearwallet.com/send-money/<facilitator>). A production
-version would embed @near-wallet-selector for in-app funding and
-policy-managed agent keys (MPC / chain signatures).
+Wallet interaction: no connect-wallet in the agent loop (the agent spends
+the facilitator float; humans never sign per action). The wallet touchpoint
+is funding the float, done properly with @near-wallet-selector (MyNearWallet
+module on testnet): connect / disconnect / switch from the in-app wallet bar,
+and top up the float with an in-app, wallet-signed transfer. A deep-link to
+the MyNearWallet send page remains as the no-JS fallback. Production path
+for agent keys stays MPC / chain signatures.
 
 ## Alignment with NEAR hackathon themes
 
