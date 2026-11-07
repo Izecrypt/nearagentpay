@@ -203,6 +203,39 @@ h1 .g{background:linear-gradient(100deg,var(--near) 20%,#7dfcd0 55%,var(--near) 
 .runs .r .s.completed{color:var(--near)}.runs .r .s.running{color:var(--warn)}
 .runs .r .a{font-family:var(--mono);font-size:11px;color:var(--faint)}
 .empty{color:var(--faint);font-size:12.5px;padding:8px 0}
+/* rationale */
+.why{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--faint);
+  margin-top:9px}
+.why b{color:var(--dim);font-weight:600}
+.why::before{content:"◆";color:var(--near);font-size:8px}
+/* artifact */
+.artifact{margin-top:13px;border:1px solid rgba(0,236,151,.22);border-radius:11px;
+  overflow:hidden;background:rgba(0,0,0,.28)}
+.artifact .ahead{display:flex;justify-content:space-between;align-items:center;
+  padding:8px 13px;background:var(--near-dim);font-size:10px;font-weight:800;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--near)}
+.artifact .abody{padding:12px 14px;font-size:12.5px;white-space:pre-wrap;color:var(--txt)}
+.artifact .ameta{padding:0 14px 10px;font-size:10.5px;color:var(--faint)}
+.artifact .swatch{height:74px;margin:10px 14px 4px;border-radius:8px;
+  display:flex;align-items:flex-end;padding:8px 10px;font-size:10px;color:rgba(0,0,0,.55);
+  font-weight:700}
+/* ledger */
+.ledger{margin-top:34px}
+.ltable{width:100%;border-collapse:collapse;font-size:12.5px}
+.ltable th{font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--faint);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line2)}
+.ltable td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+.ltable tr:last-child td{border-bottom:0}
+.ltable tr{transition:background .12s}
+.ltable tbody tr:hover{background:rgba(255,255,255,.025)}
+.ltable .mono{font-family:var(--mono);font-size:11px;color:var(--dim)}
+.ltable .amt{font-family:var(--mono);font-size:11.5px;text-align:right;color:var(--near);font-weight:700}
+.ltable .amt.ref{color:var(--warn)}
+.lstat{display:flex;gap:26px;flex-wrap:wrap;margin-bottom:16px}
+.lstat .s b{font-size:20px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.lstat .s i{display:block;font-style:normal;font-size:9.5px;color:var(--faint);
+  letter-spacing:.12em;text-transform:uppercase;margin-top:2px}
+.lstat .s.g b{color:var(--near)}
 
 footer{margin:48px 0 30px;color:var(--faint);font-size:12px;display:flex;
   justify-content:space-between;gap:14px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:20px}
@@ -272,6 +305,17 @@ footer a:hover{color:var(--near)}
     </div>
   </div>
 
+  <div class="ledger card">
+    <h3>Audit ledger <span class="live">the product</span></h3>
+    <div class="lstat" id="lstat"></div>
+    <div style="overflow-x:auto">
+    <table class="ltable">
+      <thead><tr><th>time</th><th>run</th><th>step</th><th>settlement</th><th style="text-align:right">amount</th><th>tx</th><th>status</th></tr></thead>
+      <tbody id="lrows"><tr><td colspan="7" class="empty">no settlements yet</td></tr></tbody>
+    </table>
+    </div>
+  </div>
+
   <footer>
     <span>Every step: providers compared, best price, on-chain tx hash, refund where applicable. The ledger is the product; the chain is the receipt.</span>
     <span><a href="https://github.com/Izecrypt/nearagentpay" target="_blank" rel="noopener">github.com/Izecrypt/nearagentpay</a></span>
@@ -303,6 +347,33 @@ async function boot(){
   setInterval(refreshMarket,8000);
   loadRuns();
   setInterval(loadRuns,12000);
+  loadLedger();
+  setInterval(loadLedger,15000);
+}
+async function loadLedger(){
+  try{
+    const d=await j('/api/ledger');
+    const t=d.totals||{};
+    $('#lstat').innerHTML=`
+      <div class="s g"><b>${(+ (t.settled||0)).toFixed(3)}◎</b><i>settled on-chain</i></div>
+      <div class="s"><b>${(+ (t.refunded||0)).toFixed(3)}◎</b><i>refunded</i></div>
+      <div class="s"><b>${t.steps||0}</b><i>steps audited</i></div>
+      <div class="s"><b>${t.runs||0}</b><i>agent runs</i></div>`;
+    const rows=(d.rows||[]).slice(0,12);
+    if(!rows.length){$('#lrows').innerHTML='<tr><td colspan="7" class="empty">no settlements yet</td></tr>';return;}
+    $('#lrows').innerHTML=rows.map(r=>{
+      const when=new Date((r.ts||0)*1000).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+      const tx=r.order_id?(r.explorer_url?`<a class="mono" style="color:var(--near)" href="${r.explorer_url}" target="_blank" rel="noopener">${esc(r.order_id.slice(0,10))}…</a>`:`<span class="mono">${esc(r.order_id)}</span>`):'—';
+      const amt=(+ (r.best_price||0)).toFixed(3);
+      return `<tr><td class="mono">${when}</td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.run_task||'')}">${esc((r.run_task||'').slice(0,28))}</td>
+        <td style="text-transform:capitalize">${esc(r.service)}${r.provider?` → <b>${esc(r.provider)}</b>`:''}</td>
+        <td class="mono">facilitator → provider</td>
+        <td class="amt ${r.status==='refunded'?'ref':''}">${amt}◎</td>
+        <td>${tx}</td>
+        <td><span class="statuspill ${r.status==='paid'?'completed':(r.status==='refunded'?'running':'failed')}" style="font-size:9px">${esc(r.status)}</span></td></tr>`;
+    }).join('');
+  }catch(e){}
 }
 async function refreshFacilitator(){
   try{
@@ -355,7 +426,7 @@ async function poll(rid){
   try{d=await j('/api/run?id='+rid);}catch(e){pollTimer=setTimeout(()=>poll(rid),1500);return;}
   render(rid,d);
   if(d.run.status==='running')pollTimer=setTimeout(()=>poll(rid),900);
-  else $('#runbtn').disabled=false;
+  else {$('#runbtn').disabled=false;loadLedger();}
 }
 
 function ring(pct){return 251.3*(1-Math.min(100,pct)/100);}
@@ -416,7 +487,22 @@ function stepHtml(s,rid){
     <div class="head"><span class="num">step ${s.n}</span><span class="svc">${esc(s.service)}</span>
       <span class="state">${esc(s.status)}</span></div>
     ${s.note?`<div class="note">${esc(s.note)}</div>`:''}
-    ${q}${tx}</div>`;
+    ${(s.status==='paid'||s.status==='refunded')&&s.provider?`<div class="why"><b>why ${esc(s.provider)}:</b> cheapest of ${s.providers_considered} live quotes, within remaining budget</div>`:''}
+    ${q}${artifactHtml(s)}${tx}</div>`;
+}
+
+function artifactHtml(s){
+  const a=s.artifact;
+  if(!a)return '';
+  let body='';
+  if(a.type==='image'){
+    const h=(a.seed||120)%360;
+    body=`<div class="swatch" style="background:linear-gradient(135deg,hsl(${h},80%,60%),hsl(${(h+60)%360},75%,45%),hsl(${(h+140)%360},70%,35%))">${esc(a.prompt||'')}</div>`;
+  }else{
+    body=`<div class="abody">${esc(a.body||'')}</div>`;
+  }
+  return `<div class="artifact"><div class="ahead"><span>◈ deliverable received</span><span>${esc(a.type)}</span></div>${body}
+    <div class="ameta">${esc(a.meta||'')}</div></div>`;
 }
 
 async function refund(stepId,rid){

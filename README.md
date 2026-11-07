@@ -89,6 +89,7 @@ and NEAR AI Cloud. Where this build stands on each, honestly:
 - `POST /api/refund` `{step_id}` — refund a settled step
 - `GET /api/providers` — gateway mode + live quotes
 - `GET /api/facilitator` — facilitator account, live balance, explorer link
+- `GET /api/ledger` — cross-run audit trail with lifetime totals
 
 ## Tools used
 

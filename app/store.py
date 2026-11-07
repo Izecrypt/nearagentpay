@@ -22,6 +22,10 @@ class Store:
             self.conn.execute("ALTER TABLE steps ADD COLUMN quotes_json TEXT")
         except sqlite3.OperationalError:
             pass
+        try:
+            self.conn.execute("ALTER TABLE steps ADD COLUMN artifact_json TEXT")
+        except sqlite3.OperationalError:
+            pass
 
     def create_run(self, rid, task, budget):
         self.conn.execute(
@@ -33,13 +37,14 @@ class Store:
         self.conn.execute(
             """INSERT INTO steps(run_id,n,service,provider,providers_considered,
                best_price,budget_remaining,order_id,capture_id,status,refund_id,
-               note,explorer_url,quotes_json,ts) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               note,explorer_url,quotes_json,artifact_json,ts) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (rid, step.get("step"), step.get("service"), step.get("provider"),
              step.get("providers_considered"), step.get("best_price"),
              step.get("budget_remaining"), step.get("order_id"),
              step.get("capture_id"), step.get("status"), step.get("refund_id"),
              step.get("note"), step.get("explorer_url"),
              json.dumps(step.get("quotes")) if step.get("quotes") else None,
+             json.dumps(step.get("artifact")) if step.get("artifact") else None,
              time.time()))
         self.conn.commit()
 
@@ -61,6 +66,8 @@ class Store:
             d = dict(s)
             if d.get("quotes_json"):
                 d["quotes"] = json.loads(d["quotes_json"])
+            if d.get("artifact_json"):
+                d["artifact"] = json.loads(d["artifact_json"])
             steps.append(d)
         spent = round(sum(s["best_price"] or 0 for s in steps if s["status"] == "paid"), 3)
         return {"run": dict(run), "steps": steps, "spent": spent,
@@ -81,3 +88,21 @@ class Store:
                           (res.get("refund_id"), step_id))
         self.conn.commit()
         return True, res.get("refund_id")
+
+    def list_ledger(self, limit=100):
+        rows = [dict(r) for r in self.conn.execute(
+            """SELECT s.*, r.task AS run_task FROM steps s
+               JOIN runs r ON r.id = s.run_id
+               ORDER BY s.ts DESC LIMIT ?""", (limit,))]
+        for d in rows:
+            for key, col in (("quotes", "quotes_json"), ("artifact", "artifact_json")):
+                if d.get(col):
+                    d[key] = json.loads(d[col])
+        totals = dict(self.conn.execute(
+            """SELECT
+                 COALESCE(SUM(CASE WHEN status='paid' THEN best_price END),0) AS settled,
+                 COALESCE(SUM(CASE WHEN status='refunded' THEN best_price END),0) AS refunded,
+                 COUNT(*) AS steps,
+                 COUNT(DISTINCT run_id) AS runs
+               FROM steps""").fetchone())
+        return {"rows": rows, "totals": totals}

@@ -60,6 +60,8 @@ class Handler(BaseHTTPRequestHandler):
                 "providers": DEFAULT_PROVIDERS}))
         if p.path == "/api/facilitator":
             return self._send(200, json.dumps(facilitator_info()))
+        if p.path == "/api/ledger":
+            return self._send(200, json.dumps(STORE.list_ledger()))
         if p.path == "/api/runs":
             return self._send(200, json.dumps({"runs": STORE.list_runs(),
                                                "gateway": GATEWAY.name}))

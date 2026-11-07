@@ -59,6 +59,35 @@ def receiver_for(provider, provider_map):
     return (provider_map or {}).get(provider) or DEFAULT_PROVIDERS.get(provider)
 
 
+def artifact_for(service, provider):
+    """Deterministic stand-in for the work a paid step buys. A production
+    version calls the real provider; the control plane is identical."""
+    if service == "translation":
+        return {"type": "translation", "title": "Translated deliverable",
+                "body": "Bonjour — voici votre pitch, traduit avec soin. "
+                        "Ton conservé, termes techniques vérifiés.",
+                "meta": f"EN → FR · by {provider}"}
+    if service == "summarization":
+        return {"type": "summary", "title": "Summary deliverable",
+                "body": "• Lead with the problem, not the product\n"
+                        "• One metric per paragraph\n"
+                        "• Close with the ask",
+                "meta": f"3 key points · by {provider}"}
+    if service == "image":
+        return {"type": "image", "title": "Image deliverable",
+                "prompt": "minimal header, gradient mesh, dark mode",
+                "meta": f"1024×512 · by {provider}", "seed": hash(provider) % 360}
+    if service == "dataset":
+        return {"type": "dataset", "title": "Dataset deliverable",
+                "body": "price | name | source\n0.104 | LinguaFast | near\n"
+                        "0.116 | PolyGlot | near\n0.156 | VerbatimAI | near",
+                "meta": f"3 rows preview · by {provider}"}
+    return {"type": "search", "title": "Research deliverable",
+            "body": "• 3 providers tracked\n• price spread 44%\n"
+                    "• cheapest drifts between runs",
+            "meta": f"findings · by {provider}"}
+
+
 def run_task(task, budget, gateway, on_step, provider_map=None):
     run_spend = 0.0
     for n, service in enumerate(plan(task), start=1):
@@ -107,6 +136,7 @@ def run_task(task, budget, gateway, on_step, provider_map=None):
             tried = f" after {len(attempts)} failed provider(s)" if attempts else ""
             step["note"] = (f"settled {quote['price']:.3f} NEAR to {quote['provider']}"
                             f"{tried}; tx final on-chain")
+            step["artifact"] = artifact_for(service, quote["provider"])
             on_step(step)
             break
         else:
