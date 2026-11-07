@@ -224,6 +224,7 @@ footer a:hover{color:var(--near)}
     <span class="badge live" id="netbadge"><span class="dot"></span><span id="netname">testnet</span></span>
     <span class="badge">NEAR hackathon</span>
     <div class="right">
+      <span class="chip" id="facchip">float …</span>
       <span class="chip" id="gatechip">connecting…</span>
     </div>
   </div>
@@ -296,10 +297,21 @@ async function boot(){
   $('#gatechip').innerHTML=g.gateway==='sim'
     ?'simulation mode'
     :'facilitator <a href="https://explorer.testnet.near.org/accounts/izagentpay.testnet" target="_blank" rel="noopener">izagentpay…</a>';
+  refreshFacilitator();
+  setInterval(refreshFacilitator,20000);
   renderMarket(g.quotes);
   setInterval(refreshMarket,8000);
   loadRuns();
   setInterval(loadRuns,12000);
+}
+async function refreshFacilitator(){
+  try{
+    const f=await j('/api/facilitator');
+    if(f.account&&f.balance_near!=null){
+      $('#facchip').innerHTML=`agent float <b style="color:var(--near)">${f.balance_near.toLocaleString()}◎</b>
+        <a href="https://wallet.testnet.near.org/send-money/${f.account}" target="_blank" rel="noopener" title="top up the facilitator float from your wallet">top up ↗</a>`;
+    }else{$('#facchip').textContent='simulation float';}
+  }catch(e){}
 }
 async function refreshMarket(){try{const g=await j('/api/providers');renderMarket(g.quotes);}catch(e){}}
 function renderMarket(quotes){

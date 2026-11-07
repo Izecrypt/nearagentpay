@@ -58,6 +58,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, json.dumps({
                 "gateway": GATEWAY.name, "quotes": live_quotes(),
                 "providers": DEFAULT_PROVIDERS}))
+        if p.path == "/api/facilitator":
+            return self._send(200, json.dumps(facilitator_info()))
         if p.path == "/api/runs":
             return self._send(200, json.dumps({"runs": STORE.list_runs(),
                                                "gateway": GATEWAY.name}))
@@ -103,6 +105,21 @@ class Handler(BaseHTTPRequestHandler):
         result = run_task(task, budget, GATEWAY, lambda s: STORE.add_step(rid, s),
                           PROVIDER_MAP)
         STORE.finish_run(rid, result["status"], result.get("error"))
+
+
+def facilitator_info():
+    if GATEWAY.name != "near-testnet":
+        return {"gateway": GATEWAY.name, "account": None, "balance_near": None}
+    try:
+        acct = GATEWAY.rpc._call("query", {
+            "request_type": "view_account", "finality": "final",
+            "account_id": GATEWAY.account})
+        bal = int(acct["amount"]) / 10 ** 18
+    except Exception:
+        bal = None
+    return {"gateway": GATEWAY.name, "account": GATEWAY.account,
+            "balance_near": round(bal, 2) if bal is not None else None,
+            "explorer": f"{GATEWAY.rpc.explorer}/accounts/{GATEWAY.account}"}
 
 
 def main():
