@@ -380,7 +380,7 @@ async function refreshFacilitator(){
     const f=await j('/api/facilitator');
     if(f.account&&f.balance_near!=null){
       $('#facchip').innerHTML=`agent float <b style="color:var(--near)">${f.balance_near.toLocaleString()}◎</b>
-        <a href="https://wallet.testnet.near.org/send-money/${f.account}" target="_blank" rel="noopener" title="top up the facilitator float from your wallet">top up ↗</a>`;
+        <a href="https://testnet.mynearwallet.com/send-money/${f.account}" target="_blank" rel="noopener" title="top up the facilitator float from your NEAR wallet">top up ↗</a>`;
     }else{$('#facchip').textContent='simulation float';}
   }catch(e){}
 }
