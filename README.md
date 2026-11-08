@@ -106,6 +106,12 @@ and NEAR AI Cloud. Where this build stands on each, honestly:
   behind the same `plan()` interface. The contribution is the payment
   control plane, not the planner.
 
+## Stack and libraries
+
+Python 3.9+ standard library (HTTP server, SQLite, Decimal); PyNaCl
+(ed25519 signing); @near-wallet-selector + MyNearWallet/Meteor/Sender via
+CDN (frontend wallet layer). No other dependencies.
+
 ## For NEAR hackathon judges
 
 See [HACKATHON.md](HACKATHON.md) for a do-X-see-Y walkthrough, the
