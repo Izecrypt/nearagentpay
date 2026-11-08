@@ -36,6 +36,10 @@ pip install pynacl          # the one dependency (signing)
 cd app && python3 main.py   # http://localhost:8792
 ```
 
+Live demo (NEAR testnet): https://agentpay.trenchesnetwork.xyz — give the
+agent a task, watch each step settle on-chain. (Kept up through hackathon
+judging per the organizers' guidance.)
+
 Without chain credentials it runs in **simulation mode** (same interface,
 deterministic demo). For live NEAR testnet settlement:
 
