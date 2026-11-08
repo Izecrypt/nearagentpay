@@ -106,6 +106,12 @@ and NEAR AI Cloud. Where this build stands on each, honestly:
   behind the same `plan()` interface. The contribution is the payment
   control plane, not the planner.
 
+## For NEAR hackathon judges
+
+See [HACKATHON.md](HACKATHON.md) for a do-X-see-Y walkthrough, the
+technologies used (named accounts, sub-accounts, native NEAR transfers),
+and the entry's track (Agent Economy).
+
 ## License
 
 MIT, see LICENSE.
